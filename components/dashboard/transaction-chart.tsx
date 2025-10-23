@@ -14,6 +14,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts"
+import { deviceStorage } from "@/lib/device-storage"
 
 export default function TransactionChart() {
   const [categoryData, setCategoryData] = useState<any[]>([])
@@ -23,66 +24,60 @@ export default function TransactionChart() {
   const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"]
 
   useEffect(() => {
-    const fetchChartData = async () => {
-      try {
-        const token = localStorage.getItem("access_token")
-        const response = await fetch("/api/transactions", {
-          headers: { Authorization: `Bearer ${token}` },
+    const loadChartData = () => {
+      const transactions = deviceStorage.getTransactions()
+
+      // Dados de categoria (pizza)
+      const categoryMap: Record<string, number> = {}
+      transactions
+        .filter((t) => t.type === "expense")
+        .forEach((t) => {
+          categoryMap[t.category] = (categoryMap[t.category] || 0) + Number(t.amount)
         })
 
-        if (response.ok) {
-          const transactions = await response.json()
+      const pieData = Object.entries(categoryMap).map(([name, value]) => ({
+        name,
+        value: Number(value)
+      }))
 
-          const categoryMap: Record<string, number> = {}
-          transactions
-            .filter((t: any) => t.type === "expense")
-            .forEach((t: any) => {
-              categoryMap[t.category] = (categoryMap[t.category] || 0) + Number.parseFloat(t.amount)
-            })
+      // Dados semanais (linha)
+      const weeklyMap: Record<string, { income: number; expense: number }> = {}
+      const today = new Date()
 
-          const pieData = Object.entries(categoryMap).map(([name, value]) => ({
-            name,
-            value: Number.parseFloat(value.toString()),
-          }))
-
-          const weeklyMap: Record<string, { income: number; expense: number }> = {}
-          const today = new Date()
-
-          for (let i = 6; i >= 0; i--) {
-            const date = new Date(today)
-            date.setDate(date.getDate() - i)
-            const dateStr = date.toISOString().split("T")[0]
-            weeklyMap[dateStr] = { income: 0, expense: 0 }
-          }
-
-          transactions.forEach((t: any) => {
-            const dateStr = new Date(t.date).toISOString().split("T")[0]
-            if (weeklyMap[dateStr]) {
-              if (t.type === "income") {
-                weeklyMap[dateStr].income += Number.parseFloat(t.amount)
-              } else {
-                weeklyMap[dateStr].expense += Number.parseFloat(t.amount)
-              }
-            }
-          })
-
-          const lineData = Object.entries(weeklyMap).map(([date, data]) => ({
-            date: new Date(date).toLocaleDateString("pt-BR", { weekday: "short" }),
-            receita: data.income,
-            despesa: data.expense,
-          }))
-
-          setCategoryData(pieData)
-          setWeeklyData(lineData)
-        }
-      } catch (error) {
-        console.error("Erro ao buscar dados dos gráficos:", error)
-      } finally {
-        setLoading(false)
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date(today)
+        date.setDate(date.getDate() - i)
+        const dateStr = date.toISOString().split("T")[0]
+        weeklyMap[dateStr] = { income: 0, expense: 0 }
       }
+
+      transactions.forEach((t) => {
+        const dateStr = new Date(t.date).toISOString().split("T")[0]
+        if (weeklyMap[dateStr]) {
+          if (t.type === "income") {
+            weeklyMap[dateStr].income += Number(t.amount)
+          } else {
+            weeklyMap[dateStr].expense += Number(t.amount)
+          }
+        }
+      })
+
+      const lineData = Object.entries(weeklyMap).map(([date, data]) => ({
+        date: new Date(date).toLocaleDateString("pt-BR", { weekday: "short" }),
+        receita: data.income,
+        despesa: data.expense,
+      }))
+
+      setCategoryData(pieData)
+      setWeeklyData(lineData)
+      setLoading(false)
     }
 
-    fetchChartData()
+    loadChartData()
+    
+    // Atualiza a cada 2 segundos
+    const interval = setInterval(loadChartData, 2000)
+    return () => clearInterval(interval)
   }, [])
 
   if (loading) {
@@ -116,7 +111,7 @@ export default function TransactionChart() {
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
-                <Tooltip formatter={(value) => `R$ ${value.toFixed(2)}`} />
+                <Tooltip formatter={(value) => `R$ ${Number(value).toFixed(2)}`} />
               </PieChart>
             </ResponsiveContainer>
           ) : (
@@ -135,7 +130,7 @@ export default function TransactionChart() {
                 <XAxis dataKey="date" stroke="var(--color-foreground-muted)" />
                 <YAxis stroke="var(--color-foreground-muted)" />
                 <Tooltip
-                  formatter={(value) => `R$ ${value.toFixed(2)}`}
+                  formatter={(value) => `R$ ${Number(value).toFixed(2)}`}
                   contentStyle={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)" }}
                 />
                 <Legend />

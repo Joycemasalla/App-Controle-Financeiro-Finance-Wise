@@ -1,15 +1,45 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
+import { deviceStorage } from "@/lib/device-storage"
 
 export default function QuickMessageForm() {
-  const [phoneNumber, setPhoneNumber] = useState("")
   const [message, setMessage] = useState("")
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState("")
   const [error, setError] = useState("")
+
+  const parseMessage = (msg: string) => {
+    const lowerMsg = msg.toLowerCase()
+    
+    // Padrões de reconhecimento
+    const patterns = [
+      // Gastos: "gasto 50 em alimentação", "gastei 100 de mercado"
+      { regex: /(?:gasto|gastei|paguei|despesa)\s+(?:r\$\s*)?(\d+(?:[.,]\d{2})?)\s+(?:em|de|com|no|na)\s+(.+)/i, type: 'expense' },
+      // Receitas: "recebi 1000 de salário", "ganhei 500 freelance"
+      { regex: /(?:recebi|ganhei|entrada|renda)\s+(?:r\$\s*)?(\d+(?:[.,]\d{2})?)\s+(?:de|do|da|em)\s+(.+)/i, type: 'income' },
+      // Formato simples: "50 alimentação", "1000 salário"
+      { regex: /(\d+(?:[.,]\d{2})?)\s+(?:em|de|para)?\s*(.+)/i, type: 'expense' }
+    ]
+
+    for (const pattern of patterns) {
+      const match = msg.match(pattern.regex)
+      if (match) {
+        const amount = parseFloat(match[1].replace(',', '.'))
+        const category = match[2].trim()
+        
+        return {
+          amount,
+          category: category.charAt(0).toUpperCase() + category.slice(1),
+          type: pattern.type as 'income' | 'expense',
+          description: msg
+        }
+      }
+    }
+
+    return null
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -18,25 +48,25 @@ export default function QuickMessageForm() {
     setLoading(true)
 
     try {
-      const response = await fetch("/api/quick-messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-        },
-        body: JSON.stringify({ phone_number: phoneNumber, message }),
-      })
+      const parsed = parseMessage(message)
 
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || "Erro ao enviar mensagem")
+      if (!parsed) {
+        throw new Error(
+          "Não consegui entender a mensagem. Use formatos como: 'Gasto 50 em alimentação' ou 'Recebi 1000 de salário'"
+        )
       }
 
-      const data = await response.json()
-      setSuccess(
-        `Transação registrada! ${data.transaction.type === "income" ? "Receita" : "Despesa"} de R$ ${Number.parseFloat(data.transaction.amount).toFixed(2)} em ${data.transaction.category}`,
+      const transaction = deviceStorage.saveTransaction({
+        type: parsed.type,
+        amount: parsed.amount,
+        category: parsed.category,
+        description: parsed.description,
+        date: new Date().toISOString()
+      })
+
+setSuccess(
+        `✅ Transação registrada! ${transaction.type === "income" ? "Receita" : "Despesa"} de R$ ${Number(transaction.amount).toFixed(2)} em ${transaction.category}`
       )
-      setPhoneNumber("")
       setMessage("")
     } catch (err: any) {
       setError(err.message)
@@ -45,17 +75,22 @@ export default function QuickMessageForm() {
     }
   }
 
-  const examples = ["Gasto 50 reais em alimentação", "Recebi 1000 de freelance", "Paguei 200 de conta de luz"]
+  const examples = [
+    "Gasto 50 em alimentação",
+    "Recebi 1000 de salário",
+    "Paguei 200 de conta de luz",
+    "Ganhei 500 freelance"
+  ]
 
   return (
     <div className="space-y-6">
       <div className="card">
         <h2 className="text-lg font-bold text-foreground mb-4">Como Funciona</h2>
         <ul className="space-y-2 text-foreground-muted text-sm">
-          <li>✓ Envie uma mensagem com sua transação</li>
-          <li>✓ Inclua o valor, categoria e descrição</li>
+          <li>✓ Digite uma mensagem descrevendo sua transação</li>
+          <li>✓ Inclua o valor e a categoria</li>
+          <li>✓ Use palavras como "gasto", "recebi", "paguei", etc</li>
           <li>✓ A transação será registrada automaticamente</li>
-          <li>✓ Receba confirmação por SMS/WhatsApp</li>
         </ul>
       </div>
 
@@ -67,31 +102,18 @@ export default function QuickMessageForm() {
 
       <form onSubmit={handleSubmit} className="card space-y-4">
         <div>
-          <label className="block text-sm font-medium mb-2">Número de Telefone</label>
-          <input
-            type="tel"
-            value={phoneNumber}
-            onChange={(e) => setPhoneNumber(e.target.value)}
-            className="input-field w-full"
-            placeholder="+55 11 99999-9999"
-            required
-          />
-          <p className="text-xs text-foreground-muted mt-1">Formato: +55 11 99999-9999</p>
-        </div>
-
-        <div>
           <label className="block text-sm font-medium mb-2">Mensagem</label>
           <textarea
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             className="input-field w-full h-24 resize-none"
-            placeholder="Ex: Gasto 50 reais em alimentação no supermercado"
+            placeholder="Ex: Gasto 50 em alimentação no supermercado"
             required
           />
         </div>
 
         <button type="submit" disabled={loading} className="btn-primary w-full disabled:opacity-50">
-          {loading ? "Enviando..." : "Enviar Mensagem"}
+          {loading ? "Processando..." : "Registrar Transação"}
         </button>
       </form>
 

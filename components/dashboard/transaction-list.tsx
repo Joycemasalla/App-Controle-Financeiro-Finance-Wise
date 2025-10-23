@@ -1,34 +1,36 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { deviceStorage, type Transaction } from "@/lib/device-storage"
 
 export default function TransactionList() {
-  const [transactions, setTransactions] = useState<any[]>([])
+  const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const fetchTransactions = async () => {
-      try {
-        const token = localStorage.getItem("access_token")
-        const response = await fetch("/api/transactions", {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-
-        if (response.ok) {
-          const data = await response.json()
-          setTransactions(
-            data.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 10),
-          )
-        }
-      } catch (error) {
-        console.error("Erro ao buscar transações:", error)
-      } finally {
-        setLoading(false)
-      }
+    const loadTransactions = () => {
+      const data = deviceStorage.getTransactions()
+      // Ordena por data, mais recentes primeiro
+      const sorted = data.sort((a, b) => 
+        new Date(b.date).getTime() - new Date(a.date).getTime()
+      ).slice(0, 10)
+      setTransactions(sorted)
+      setLoading(false)
     }
 
-    fetchTransactions()
+    loadTransactions()
+    
+    // Atualiza a cada segundo
+    const interval = setInterval(loadTransactions, 1000)
+    return () => clearInterval(interval)
   }, [])
+
+  const handleDelete = (id: string) => {
+    if (confirm("Tem certeza que deseja deletar esta transação?")) {
+      deviceStorage.deleteTransaction(id)
+      setTransactions(prev => prev.filter(t => t.id !== id))
+    }
+  }
 
   if (loading) {
     return (
@@ -54,6 +56,7 @@ export default function TransactionList() {
               <th className="text-left py-3 px-4 text-foreground-muted text-sm font-medium">Descrição</th>
               <th className="text-left py-3 px-4 text-foreground-muted text-sm font-medium">Valor</th>
               <th className="text-left py-3 px-4 text-foreground-muted text-sm font-medium">Data</th>
+              <th className="text-left py-3 px-4 text-foreground-muted text-sm font-medium">Ações</th>
             </tr>
           </thead>
           <tbody>
@@ -63,16 +66,24 @@ export default function TransactionList() {
                   <td className="py-3 px-4 text-foreground">{tx.category}</td>
                   <td className="py-3 px-4 text-foreground-muted">{tx.description || "-"}</td>
                   <td className={`py-3 px-4 font-semibold ${tx.type === "income" ? "text-success" : "text-danger"}`}>
-                    {tx.type === "income" ? "+" : "-"} R$ {Number.parseFloat(tx.amount).toFixed(2)}
+                    {tx.type === "income" ? "+" : "-"} R$ {Number(tx.amount).toFixed(2)}
                   </td>
                   <td className="py-3 px-4 text-foreground-muted text-sm">
                     {new Date(tx.date).toLocaleDateString("pt-BR")}
+                  </td>
+                  <td className="py-3 px-4">
+                    <button
+                      onClick={() => handleDelete(tx.id)}
+                      className="text-danger hover:text-danger/80 text-sm"
+                    >
+                      Deletar
+                    </button>
                   </td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan={4} className="py-8 text-center text-foreground-muted">
+                <td colSpan={5} className="py-8 text-center text-foreground-muted">
                   Nenhuma transação registrada
                 </td>
               </tr>

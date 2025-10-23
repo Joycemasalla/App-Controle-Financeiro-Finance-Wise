@@ -1,19 +1,15 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
 
 export default function Navbar({
-  user,
-  onLogout,
+  deviceId,
   onToggleSidebar,
 }: {
-  user: any
-  onLogout: () => void
+  deviceId: string
   onToggleSidebar: () => void
 }) {
   const [isOnline, setIsOnline] = useState(true)
-  const router = useRouter()
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true)
@@ -27,11 +23,6 @@ export default function Navbar({
       window.removeEventListener("offline", handleOffline)
     }
   }, [])
-
-  const handleLogout = () => {
-    onLogout()
-    router.push("/")
-  }
 
   return (
     <nav className="bg-card border-b border-border">
@@ -48,16 +39,10 @@ export default function Navbar({
             <div className={`w-2 h-2 rounded-full ${isOnline ? "bg-success" : "bg-warning"}`} />
             <span className="text-xs text-foreground-muted">{isOnline ? "Online" : "Offline"}</span>
           </div>
-
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-foreground-muted">{user?.name}</span>
-            <button
-              onClick={handleLogout}
-              className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition text-sm"
-            >
-              Sair
-            </button>
-          </div>
+          
+          <span className="text-xs text-foreground-muted hidden md:block">
+            ID: {deviceId.substring(0, 12)}...
+          </span>
         </div>
       </div>
     </nav>

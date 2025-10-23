@@ -1,27 +1,19 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
 import DashboardLayout from "@/components/dashboard/layout"
 import QuickMessageForm from "@/components/quick-entry/quick-message-form"
+import { deviceStorage } from "@/lib/device-storage"
 
 export default function QuickEntry() {
-  const [user, setUser] = useState<any>(null)
+  const [deviceId, setDeviceId] = useState<string>("")
   const [loading, setLoading] = useState(true)
-  const router = useRouter()
 
   useEffect(() => {
-    const currentUser = localStorage.getItem("currentUser")
-    const userName = localStorage.getItem("userName")
-
-    if (!currentUser) {
-      router.push("/")
-      return
-    }
-
-    setUser({ email: currentUser, name: userName })
+    const id = deviceStorage.getDeviceId()
+    setDeviceId(id)
     setLoading(false)
-  }, [router])
+  }, [])
 
   if (loading) {
     return (
@@ -32,7 +24,7 @@ export default function QuickEntry() {
   }
 
   return (
-    <DashboardLayout user={user}>
+    <DashboardLayout deviceId={deviceId}>
       <div className="max-w-2xl">
         <h1 className="text-3xl font-bold text-foreground mb-2">Registro Rápido</h1>
         <p className="text-foreground-muted mb-6">Envie uma mensagem para registrar uma transação rapidamente</p>

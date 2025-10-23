@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { deviceStorage } from "@/lib/device-storage"
 
 export default function SummaryCards() {
   const [stats, setStats] = useState({
@@ -12,40 +13,43 @@ export default function SummaryCards() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const currentUser = localStorage.getItem("currentUser")
-    if (!currentUser) return
+    const loadStats = () => {
+      const transactions = deviceStorage.getTransactions()
+      
+      const income = transactions
+        .filter((t) => t.type === "income")
+        .reduce((sum, t) => sum + Number(t.amount), 0)
 
-    const key = `transactions_${currentUser}`
-    const stored = localStorage.getItem(key)
-    const transactions = stored ? JSON.parse(stored) : []
+      const expenses = transactions
+        .filter((t) => t.type === "expense")
+        .reduce((sum, t) => sum + Number(t.amount), 0)
 
-    const income = transactions
-      .filter((t: any) => t.type === "income")
-      .reduce((sum: number, t: any) => sum + Number.parseFloat(t.amount), 0)
+      setStats({
+        income,
+        expenses,
+        balance: income - expenses,
+        transactions: transactions.length,
+      })
+      
+      setLoading(false)
+    }
 
-    const expenses = transactions
-      .filter((t: any) => t.type === "expense")
-      .reduce((sum: number, t: any) => sum + Number.parseFloat(t.amount), 0)
+    loadStats()
 
-    setStats({
-      income,
-      expenses,
-      balance: income - expenses,
-      transactions: transactions.length,
-    })
-
-    setLoading(false)
+    // Atualiza quando houver mudanças no storage
+    const interval = setInterval(loadStats, 1000)
+    return () => clearInterval(interval)
   }, [])
 
   const cards = [
     {
-      label: "Receitas (Mês)",
+      label: "Receitas (Total)",
       value: `R$ ${stats.income.toFixed(2)}`,
       color: "success",
       icon: "📈",
     },
     {
-      label: "Despesas (Mês)",
+      label: "Despesas (Total)",
       value: `R$ ${stats.expenses.toFixed(2)}`,
       color: "danger",
       icon: "📉",
