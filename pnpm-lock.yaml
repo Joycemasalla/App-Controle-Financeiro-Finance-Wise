@@ -144,7 +144,7 @@ importers:
         specifier: latest
         version: 4.24.11(@auth/core@0.41.0(nodemailer@7.0.9))(next@16.0.0(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(nodemailer@7.0.9)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       next-themes:
-        specifier: ^0.4.6
+        specifier: latest
         version: 0.4.6(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       nodemailer:
         specifier: latest
